@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'users',
     'rest_framework_simplejwt',
     'products',
+    "django_filters",
 ]
 
 MIDDLEWARE = [
