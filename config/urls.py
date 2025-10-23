@@ -6,4 +6,5 @@ urlpatterns = [
     
     path("api/v1/users/", include("users.urls", namespace="users")),  # Route all user-related API endpoints to the users app
     path('api/v1/', include('products.urls')),  # Route all product-related API endpoints to the products app
+    path('api/v1/',include('orders.urls',namespace="orders"))
 ]
