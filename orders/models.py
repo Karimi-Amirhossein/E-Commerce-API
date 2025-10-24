@@ -14,12 +14,15 @@ class Cart(models.Model):
 
     @property
     def total_price(self):
-        """Returns the total price of all items in the cart."""
-        return sum(item.total_price for item in self.items.all())
+        """Total price of all items in the cart."""
+        # Ensure items exist before summing
+        if self.items.exists():
+             return sum(item.total_price for item in self.items.all())
+        return 0 # Return 0 if cart has no items
 
-    def str(self):
+
+    def __str__(self):
         return f"Cart for {self.user.username}"
-    
 
 class CartItem(models.Model):
     """Represents a single product entry in a user's cart."""
@@ -32,14 +35,12 @@ class CartItem(models.Model):
 
     @property
     def unit_price(self):
-        """Unit price of the product."""
         return self.product.price if self.product else 0
 
     @property
     def total_price(self):
-        """Total = unit_price × quantity."""
         return self.unit_price * self.quantity
 
-    def str(self):
+    def __str__(self):
         product_name = self.product.name if self.product else "N/A"
         return f"{self.quantity} × {product_name}"

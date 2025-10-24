@@ -1,12 +1,12 @@
-from django.shortcuts import get_object_or_404
-from django.db import transaction
 from rest_framework import status, views, generics, permissions
 from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from django.db import transaction
+from django.apps import apps
 
 from .models import Cart, CartItem
-from .serializers import CartSerializer, CartItemSerializer
+from .serializers import CartSerializer, CartItemSerializer, AddItemSerializer, UpdateItemSerializer
 from .permissions import IsCartOwner
-from django.apps import apps
 
 Product = apps.get_model('products', 'Product')
 
@@ -14,7 +14,7 @@ Product = apps.get_model('products', 'Product')
 class CartDetailView(generics.RetrieveAPIView):
     """
     GET /api/v1/orders/carts/<id>/
-    Retrieve a user's cart (only accessible by the owner).
+    Retrieve the current user's cart (only accessible by the owner).
     """
     queryset = Cart.objects.prefetch_related('items__product').all()
     serializer_class = CartSerializer
@@ -25,78 +25,78 @@ class CartDetailView(generics.RetrieveAPIView):
 class AddItemToCartView(views.APIView):
     """
     POST /api/v1/orders/carts/add-item/
-    Add a product to the current user's cart.
-    If cart doesn't exist, create one automatically.
+    Adds a product to the current user's cart or increases quantity if it exists.
+    Creates a cart if one doesn't exist.
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        product_id = request.data.get('product_id')
-        quantity = int(request.data.get('quantity', 1))
-        cart_id = request.data.get('cart_id')
+        serializer = AddItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        # Validate product
-        product = get_object_or_404(Product, pk=product_id)
+        product_id = serializer.validated_data['product_id']
+        quantity = serializer.validated_data.get('quantity', 1)
 
-        # Find or create user's cart
-        if cart_id:
-            cart = get_object_or_404(Cart, pk=cart_id, user=request.user)
-        else:
-            cart, _ = Cart.objects.get_or_create(user=request.user)
+        product = get_object_or_404(Product.objects.select_for_update(), pk=product_id)
+        cart, _ = Cart.objects.get_or_create(user=request.user)
 
-        # Check if product already exists in cart
         with transaction.atomic():
             item, created = CartItem.objects.select_for_update().get_or_create(
-                cart=cart, product=product
+                cart=cart, product=product, defaults={'quantity': quantity}
             )
-            if created:
-                item.quantity = quantity
-                item.save()
-                serializer = CartItemSerializer(item)
-                return Response(
-                    {"detail": "Product added to cart.", "item": serializer.data},
-                    status=status.HTTP_201_CREATED
-                )
-            else:
+
+            if not created:
                 item.quantity += quantity
                 item.save()
-                serializer = CartItemSerializer(item)
-                return Response(
-                    {"detail": "Product quantity updated in cart.", "item": serializer.data},
-                    status=status.HTTP_200_OK
-                )
+                detail_message = "Product quantity updated in cart."
+                status_code = status.HTTP_200_OK
+            else:
+                detail_message = "Product added to cart."
+                status_code = status.HTTP_201_CREATED
+
+            item.refresh_from_db()
+            item_serializer = CartItemSerializer(item)
+            return Response(
+                {"detail": detail_message, "item": item_serializer.data},
+                status=status_code
+            )
 
 
 class UpdateCartItemView(views.APIView):
     """
     PATCH /api/v1/orders/carts/<cart_id>/items/<item_id>/
+        Updates item quantity (if 0 → delete).
     DELETE /api/v1/orders/carts/<cart_id>/items/<item_id>/
-    Update or remove a product from cart.
+        Removes the item from cart.
     """
     permission_classes = [permissions.IsAuthenticated, IsCartOwner]
 
-    def get_item(self, cart_id, item_id):
-        cart = get_object_or_404(Cart, pk=cart_id)
+    def get_object(self, cart_id, item_id, user):
+        cart = get_object_or_404(Cart, pk=cart_id, user=user)
         item = get_object_or_404(CartItem, pk=item_id, cart=cart)
+        self.check_object_permissions(self.request, cart)
         return cart, item
 
     def patch(self, request, cart_id, item_id):
-        cart, item = self.get_item(cart_id, item_id)
-        self.check_object_permissions(request, cart)
+        cart, item = self.get_object(cart_id, item_id, request.user)
+        serializer = UpdateItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_quantity = serializer.validated_data['quantity']
 
-        new_quantity = int(request.data.get('quantity', 1))
         if new_quantity <= 0:
             item.delete()
-            return Response({"detail": "Item removed from cart."}, status=status.HTTP_204_NO_CONTENT)
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
         item.quantity = new_quantity
         item.save()
-        serializer = CartItemSerializer(item)
-        return Response({"detail": "Item quantity updated.", "item": serializer.data})
+        item.refresh_from_db()
+        item_serializer = CartItemSerializer(item)
+        return Response(
+            {"detail": "Item quantity updated.", "item": item_serializer.data},
+            status=status.HTTP_200_OK
+        )
 
     def delete(self, request, cart_id, item_id):
-        cart, item = self.get_item(cart_id, item_id)
-        self.check_object_permissions(request, cart)
-
+        cart, item = self.get_object(cart_id, item_id, request.user)
         item.delete()
-        return Response({"detail": "Item removed from cart."}, status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
