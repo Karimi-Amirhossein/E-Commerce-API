@@ -44,3 +44,46 @@ class CartItem(models.Model):
     def __str__(self):
         product_name = self.product.name if self.product else "N/A"
         return f"{self.quantity} × {product_name}"
+    
+
+class Order(models.Model):
+    """Represents a finalized customer order."""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='orders'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    # Store total price at the time of order creation
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    # status = models.CharField(max_length=50, default='Pending')  # optional future field
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        # Defensive but still clean
+        return f"Order #{self.pk or '?'} by {getattr(self.user, 'username', 'Unknown')}"
+
+class OrderItem(models.Model):
+    """Represents an individual product within an order."""
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.PROTECT,
+        help_text="Product purchased (protected from deletion if ordered)."
+    )
+    quantity = models.PositiveIntegerField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)  # price at purchase time
+
+    @property
+    def total_price(self):
+        """Returns total cost for this item."""
+        return self.quantity * self.price
+
+    def __str__(self):
+        return f"{self.quantity} × {getattr(self.product, 'name', 'Unknown')} (Order #{self.order_id})"

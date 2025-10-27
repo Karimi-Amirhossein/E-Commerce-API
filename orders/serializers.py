@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Cart, CartItem
 from products.serializers import ProductSerializer
 from products.models import Product
+from .models import Order, OrderItem
 
 
 class CartItemSerializer(serializers.ModelSerializer):
@@ -45,3 +46,31 @@ class AddItemSerializer(serializers.Serializer):
 class UpdateItemSerializer(serializers.Serializer):
     """Used for updating item quantity in the cart."""
     quantity = serializers.IntegerField(min_value=0)
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    """Serializer for individual items within an order."""
+    product_id = serializers.IntegerField(source='product.id', read_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    total_price = serializers.SerializerMethodField() #
+
+    
+    class Meta:
+        model = OrderItem
+        fields = ('id', 'product_id', 'product_name', 'quantity', 'price', 'total_price')
+        read_only_fields = fields  
+
+    def get_total_price(self, obj):
+        """Return total cost for this item."""
+        return obj.quantity * obj.price
+    
+
+class OrderSerializer(serializers.ModelSerializer):
+    """Serializer for displaying complete order details."""
+    user = serializers.StringRelatedField(read_only=True)
+    items = OrderItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Order
+        fields = ('id', 'user', 'created_at', 'total_price', 'items')
+        read_only_fields = fields
