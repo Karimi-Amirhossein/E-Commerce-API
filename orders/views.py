@@ -7,6 +7,8 @@ from django.apps import apps
 from .models import Cart, CartItem
 from .serializers import CartSerializer, CartItemSerializer, AddItemSerializer, UpdateItemSerializer
 from .permissions import IsCartOwner
+from .models import Order, OrderItem
+from .serializers import OrderSerializer
 
 Product = apps.get_model('products', 'Product')
 
@@ -24,9 +26,8 @@ class CartDetailView(generics.RetrieveAPIView):
 
 class AddItemToCartView(views.APIView):
     """
-    POST /api/v1/orders/carts/add-item/
-    Adds a product to the current user's cart or increases quantity if it exists.
-    Creates a cart if one doesn't exist.
+    POST /api/v1/orders/add-to-cart/
+    Adds a product to the user's cart or updates its quantity.
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -37,30 +38,46 @@ class AddItemToCartView(views.APIView):
         product_id = serializer.validated_data['product_id']
         quantity = serializer.validated_data.get('quantity', 1)
 
-        product = get_object_or_404(Product.objects.select_for_update(), pk=product_id)
-        cart, _ = Cart.objects.get_or_create(user=request.user)
+        try:
+            with transaction.atomic():
+                product = Product.objects.select_for_update().get(pk=product_id)
 
-        with transaction.atomic():
-            item, created = CartItem.objects.select_for_update().get_or_create(
-                cart=cart, product=product, defaults={'quantity': quantity}
-            )
+                cart, _ = Cart.objects.get_or_create(user=request.user)
 
-            if not created:
-                item.quantity += quantity
-                item.save()
-                detail_message = "Product quantity updated in cart."
-                status_code = status.HTTP_200_OK
-            else:
-                detail_message = "Product added to cart."
-                status_code = status.HTTP_201_CREATED
+                item, created = CartItem.objects.select_for_update().get_or_create(
+                    cart=cart,
+                    product=product,
+                    defaults={'quantity': quantity}
+                )
 
-            item.refresh_from_db()
-            item_serializer = CartItemSerializer(item)
+                if created:
+                    detail_message = "Product added to cart."
+                    status_code = status.HTTP_201_CREATED
+                else:
+                    item.quantity += quantity
+                    item.save(update_fields=['quantity'])
+                    detail_message = "Product quantity updated in cart."
+                    status_code = status.HTTP_200_OK
+
+                item.refresh_from_db()
+                item_serializer = CartItemSerializer(item)
+
             return Response(
                 {"detail": detail_message, "item": item_serializer.data},
                 status=status_code
             )
 
+        except Product.DoesNotExist:
+            return Response(
+                {"detail": "Product not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            print(f"❌ Error adding item to cart: {e}")
+            return Response(
+                {"detail": "An internal error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class UpdateCartItemView(views.APIView):
     """
@@ -100,3 +117,57 @@ class UpdateCartItemView(views.APIView):
         cart, item = self.get_object(cart_id, item_id, request.user)
         item.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+class PlaceOrderView(views.APIView):
+    """
+    POST /api/v1/orders/place-order/
+    Converts the current user's active cart into a finalized order.
+    Clears the cart after successful order placement.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            cart = Cart.objects.prefetch_related('items__product').get(user=request.user)
+        except Cart.DoesNotExist:
+            return Response(
+                {"detail": "No active cart found for this user."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if not cart.items.exists():
+            return Response(
+                {"detail": "Cannot place an order with an empty cart."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            with transaction.atomic():
+                order = Order.objects.create(
+                    user=request.user,
+                    total_price=cart.total_price
+                )
+
+                order_items = [
+                    OrderItem(
+                        order=order,
+                        product=item.product,
+                        quantity=item.quantity,
+                        price=item.unit_price
+                    )
+                    for item in cart.items.all()
+                ]
+
+                OrderItem.objects.bulk_create(order_items)
+
+                cart.items.all().delete()
+
+        except Exception as e:
+            print(f"❌ Error placing order: {e}")
+            return Response(
+                {"detail": "An error occurred while placing the order."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        serializer = OrderSerializer(order)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
