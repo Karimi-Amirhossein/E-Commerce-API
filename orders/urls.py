@@ -1,7 +1,7 @@
 from django.urls import path
 from . import views
 from .views import PlaceOrderView
-
+from .views import OrderHistoryView
 app_name = 'orders'
 
 urlpatterns = [
@@ -11,4 +11,5 @@ urlpatterns = [
     path('carts/<int:cart_id>/items/<int:item_id>/', views.UpdateCartItemView.as_view(), name='cart-item-detail'),
     # Order URL
     path('place-order/', PlaceOrderView.as_view(), name='place-order'),
+    path('history/', OrderHistoryView.as_view(), name='order-history'),
 ]
