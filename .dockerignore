@@ -1,0 +1,65 @@
+# =====================================
+#  🧠 Git files (unnecessary for Docker)
+# =====================================
+.git
+.gitignore
+.gitattributes
+
+# =====================================
+#  🐳 Docker files (only used locally)
+# =====================================
+Dockerfile
+.dockerignore
+
+# =====================================
+#  🔐 Environment files
+# =====================================
+.env
+.env.*
+!/.env.example
+
+# =====================================
+#  🐍 Python virtual environments
+# =====================================
+venv/
+.venv/
+env/
+ENV/
+
+# =====================================
+#  ⚙️ Python cache & build artifacts
+# =====================================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+build/
+dist/
+
+# =====================================
+#  💻 IDE and OS-specific files
+# =====================================
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# =====================================
+#  🧹 Logs and temporary files
+# =====================================
+*.log
+*.tmp
+*.bak
+
+# =====================================
+#  📁 Optional project folders to exclude
+# =====================================
+# docs/
+# media/
+# staticfiles/
+# tests/
+# backups/
