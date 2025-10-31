@@ -171,3 +171,11 @@ class PlaceOrderView(views.APIView):
 
         serializer = OrderSerializer(order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+class OrderHistoryView(generics.ListAPIView):
+    """Returns the authenticated user's order history."""
+    serializer_class = OrderSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Order.objects.filter(user=self.request.user)
