@@ -141,8 +141,3 @@ REST_FRAMEWORK = {
     ],
         'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
-
-# Stripe Configuration
-STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY')
-STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY')
-STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET')
