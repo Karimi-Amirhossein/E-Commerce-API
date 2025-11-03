@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .views import PlaceOrderView
+from .views import PlaceOrderView,CreatePaymentIntentView, StripeWebhookView
 from .views import OrderHistoryView
 app_name = 'orders'
 
@@ -12,4 +12,6 @@ urlpatterns = [
     # Order URL
     path('place-order/', PlaceOrderView.as_view(), name='place-order'),
     path('history/', OrderHistoryView.as_view(), name='order-history'),
+    path('create-payment-intent/', CreatePaymentIntentView.as_view(), name='create-payment-intent'),
+    path('stripe-webhook/', StripeWebhookView.as_view(), name='stripe-webhook'),
 ]
