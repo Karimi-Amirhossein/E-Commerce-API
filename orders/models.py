@@ -3,6 +3,13 @@ from django.conf import settings
 from products.models import Product
 
 
+# (Enum for Order Status)
+class OrderStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    COMPLETED = 'COMPLETED', 'Completed'
+    FAILED = 'FAILED', 'Failed'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+    
 class Cart(models.Model):
     """Represents a user's shopping cart (one cart per user)."""
     user = models.OneToOneField(
@@ -58,6 +65,11 @@ class Order(models.Model):
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     # status = models.CharField(max_length=50, default='Pending')  # optional future field
 
+    status = models.CharField(
+        max_length=10, 
+        choices=OrderStatus.choices, 
+        default=OrderStatus.PENDING
+    )
     class Meta:
         ordering = ['-created_at']
 
@@ -87,3 +99,32 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} × {getattr(self.product, 'name', 'Unknown')} (Order #{self.order_id})"
+    
+class Payment(models.Model):
+    class Status(models.TextChoices):
+        PENDING   = "PENDING",   "Pending"
+        SUCCEEDED = "SUCCEEDED", "Succeeded"
+        FAILED    = "FAILED",    "Failed"
+
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.PROTECT,
+        related_name="payments"
+    )
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+    stripe_payment_intent_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Payment {self.pk} for Order {self.order_id} - {self.status}"

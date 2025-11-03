@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Cart, CartItem
+from .models import Cart, CartItem, Order, OrderItem, Payment, OrderStatus
 from products.serializers import ProductSerializer
 from products.models import Product
 from .models import Order, OrderItem
@@ -52,7 +52,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
     """Serializer for individual items within an order."""
     product_id = serializers.IntegerField(source='product.id', read_only=True)
     product_name = serializers.CharField(source='product.name', read_only=True)
-    total_price = serializers.SerializerMethodField() #
+    total_price = serializers.SerializerMethodField()
 
     
     class Meta:
@@ -69,8 +69,35 @@ class OrderSerializer(serializers.ModelSerializer):
     """Serializer for displaying complete order details."""
     user = serializers.StringRelatedField(read_only=True)
     items = OrderItemSerializer(many=True, read_only=True)
+    # (Add 'status' field to show in API responses)
+    status = serializers.CharField(read_only=True, source="get_status_display")
 
     class Meta:
         model = Order
-        fields = ('id', 'user', 'created_at', 'total_price', 'items')
+        fields = ('id', 'user', 'created_at', 'total_price', 'items', 'status')
         read_only_fields = fields
+
+class PaymentSerializer(serializers.ModelSerializer):
+    """Serializer for representing Payment instances."""
+    
+    # Human-readable status (e.g., "Pending" instead of "PENDING")
+    status = serializers.CharField(read_only=True, source="get_status_display")
+
+    class Meta:
+        model = Payment
+        fields = [
+            'id',
+            'order',
+            'amount',
+            'status',
+            'stripe_payment_intent_id',
+            'created_at',
+        ]
+        read_only_fields = fields  # All fields are read-only here
+
+
+class CreatePaymentIntentSerializer(serializers.Serializer):
+    """Serializer for validating input when creating a payment intent."""
+    
+    # Only the order ID is required from the client
+    order_id = serializers.IntegerField(required=True)
