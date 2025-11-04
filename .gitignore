@@ -211,3 +211,6 @@ venv/
 
 # Environment Variables
 .env
+
+# Executable files
+*.exe
