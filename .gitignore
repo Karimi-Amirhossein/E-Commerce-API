@@ -214,3 +214,6 @@ venv/
 
 # Executable files
 *.exe
+
+# Static files
+staticfiles/
