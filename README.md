@@ -1,4 +1,4 @@
-# Django REST Framework e-commerce backend — JWT auth, cart/order management, Docker, PostgreSQL
+# E-Commerce-API
 
 This is the backend API for a robust and scalable e-commerce platform, built with Django and Django REST Framework.
 
